@@ -136,7 +136,7 @@ class CoroutineLauncherTest {
 
     @Test
     fun testCoroutineScopeBuilder() = runBlocking {
-        coroutineScope {
+        coroutineScope {  //继承父协程的协程作用域
             val job1 = launch {
                 delay(200)
                 println("job1 finished")

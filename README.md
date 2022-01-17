@@ -301,3 +301,328 @@
 
 ### 2.2 协程的取消
 
+#### 2.2.1 协程的取消
+
+* 取消作用域会取消它的子协程
+
+  ```kotlin
+  @Test
+  fun testCoroutineCancel() = runBlocking<Unit> {
+      val scope = CoroutineScope(Dispatchers.Default) //构建自己的协程作用域，未继承父协程的协程作用域
+      scope.launch {
+          delay(1000)
+          println("job 1")
+      }
+      scope.launch {
+          delay(1000)
+          println("job 2")
+      }
+  
+      delay(100)
+      scope.cancel()
+  
+      delay(10000) //这里的scope不属于主线程，不会阻塞，所以这里需要阻塞才能查看效果
+  }
+  ```
+
+* 被取消的子协程并不会影响其余兄弟协程
+
+  ```kotlin
+  @Test
+  fun testCoroutineBrotherCancel() = runBlocking<Unit> {
+      val scope = CoroutineScope(Dispatchers.Default) //构建自己的协程作用域，未继承父协程的协程作用域
+      val job1 = scope.launch {
+          delay(1000)
+          println("job 1")
+      }
+      val job2 = scope.launch {
+          delay(1000)
+          println("job 2")
+      }
+  
+      delay(100)
+      job1.cancel()
+  
+      delay(10000) //这里的scope不属于主线程，不会阻塞，所以这里需要阻塞才能查看效果
+  }
+  //job 2
+  ```
+
+* 协程通过抛出一个特殊的异常`CancellationException`来处理取消操作
+
+  ```kotlin
+  @Test
+  fun testCancellationException() = runBlocking<Unit> {
+      val job1 = GlobalScope.launch {
+          try {
+              delay(1000)
+              println("job 1")
+          }catch (e: Exception) {
+              e.printStackTrace()
+          }
+      }
+  
+      delay(100)
+      //job1.cancel(CancellationException("取消"))
+      //java.util.concurrent.CancellationException: 取消
+      job1.cancel(CancellationException("取消"))
+      //kotlinx.coroutines.JobCancellationException: StandaloneCoroutine was cancelled
+      //job1.join() //阻塞父协程
+      
+      job1.cancelAndJoin()
+  }
+  ```
+
+* 所有`kotlinx.coroutines`中的挂起函数（`withContext`、`delay`等）都是可以取消的
+
+#### 2.2.2 `CPU`密集型任务取消
+
+* `isActive`是一个可以被使用在`CoroutineScope`中的扩展属性，检查`Job`是否处于活跃状态
+
+  ```kotlin
+  @Test
+  fun testCancelActiveCPUTask() = runBlocking<Unit> {
+      val startTime = System.currentTimeMillis()
+      val job = launch(Dispatchers.Default) {
+          var nextPrintTime = startTime
+          var i = 0
+          //while (i < 5 && isActive) { //采用这种方式就可以退出了
+          while (i < 5) {
+              if(System.currentTimeMillis() >= nextPrintTime) {
+                  println("job: I'm sleeping ${i++} ...")
+                  nextPrintTime += 500
+              }
+          }
+      }
+  
+      delay(1300)
+      println("main: I'm tired of waiting!")
+      job.cancelAndJoin()
+      println("main: Now I can quit.")
+  }
+  //    job: I'm sleeping 0 ...
+  //    job: I'm sleeping 1 ...
+  //    job: I'm sleeping 2 ...
+  //    main: I'm tired of waiting!
+  //    job: I'm sleeping 3 ...
+  //    job: I'm sleeping 4 ...
+  //    main: Now I can quit.
+  ```
+
+* `ensureActive()`：如果`job`处于非活跃状态，这个方法会立即抛出异常
+
+  ```kotlin
+  @Test
+  fun testCancelEnsureActiveCPUTask() = runBlocking<Unit> {
+      val startTime = System.currentTimeMillis()
+      val job = launch(Dispatchers.Default) {
+          var nextPrintTime = startTime
+          var i = 0
+          //while (i < 5 && isActive) { //采用这种方式就可以退出了
+          while (i < 5) {
+              try {
+                  ensureActive()  //采用这种方式也可以退出，会抛出异常（可以用try catch捕获）
+                  if(System.currentTimeMillis() >= nextPrintTime) {
+                      println("job: I'm sleeping ${i++} ...")
+                      nextPrintTime += 500
+                  }
+              }catch (e: Exception) {
+                  e.printStackTrace()
+                  break
+              }
+  
+          }
+      }
+  
+      delay(1300)
+      println("main: I'm tired of waiting!")
+      job.cancelAndJoin()
+      println("main: Now I can quit.")
+  }
+  //    job: I'm sleeping 0 ...
+  //    job: I'm sleeping 1 ...
+  //    job: I'm sleeping 2 ...
+  //    main: I'm tired of waiting!
+  //    kotlinx.coroutines.JobCancellationException: StandaloneCoroutine was cancelled;
+  //    main: Now I can quit.
+  ```
+
+* `yield`函数会检查所在协程的状态，如果已经取消，则抛出`CancellationException`予以响应；此外它还会尝试让出线程的执行权，给其它协程提供执行机会
+
+  ```kotlin
+  @Test
+  fun testCancelYieldActiveCPUTask() = runBlocking<Unit> {
+      val startTime = System.currentTimeMillis()
+      val job = launch(Dispatchers.Default) {
+          var nextPrintTime = startTime
+          var i = 0
+          //while (i < 5 && isActive) { //采用这种方式就可以退出了
+          while (i < 5) {
+              try {
+                  yield()  //采用这种方式也可以退出，可以尝试出让CPU执行权，会抛出异常（可以用try catch捕获）
+                  if(System.currentTimeMillis() >= nextPrintTime) {
+                      println("job: I'm sleeping ${i++} ...")
+                      nextPrintTime += 500
+                  }
+              }catch (e: Exception) {
+                  e.printStackTrace()
+                  break
+              }
+  
+          }
+      }
+  
+      delay(1300)
+      println("main: I'm tired of waiting!")
+      job.cancelAndJoin()
+      println("main: Now I can quit.")
+  }
+  //    job: I'm sleeping 0 ...
+  //    job: I'm sleeping 1 ...
+  //    job: I'm sleeping 2 ...
+  //    main: I'm tired of waiting!
+  //    kotlinx.coroutines.JobCancellationException: StandaloneCoroutine was cancelled;
+  //    main: Now I can quit.
+  ```
+
+#### 2.2.3 协程取消的副作用
+
+* 在`finally`中释放资源
+
+  ```kotlin
+  @Test
+  fun testReleaseResources() = runBlocking<Unit> {
+      val job = launch {
+          try {
+              repeat(1000) { i ->
+                            println("job I'm sleeping $i ...")
+                            delay(500L)
+                           }
+          }catch (e: Exception) {
+              e.printStackTrace()
+          }finally {
+              println("job: I'm running finally")
+          }
+      }
+  
+      delay(1300)
+      println("main: I'm tired of waiting!")
+      job.cancelAndJoin()
+      println("main: Now I can quit.")
+  }
+  //    job I'm sleeping 0 ...
+  //    job I'm sleeping 1 ...
+  //    job I'm sleeping 2 ...
+  //    main: I'm tired of waiting!
+  //    kotlinx.coroutines.JobCancellationException: StandaloneCoroutine was cancelled;
+  //    job: I'm running finally
+  //    main: Now I can quit.
+  ```
+
+* `use`函数：该函数只能被实现了`Closeable`的对象使用，程序结束时会自动调用`close`方法，适合文件对象
+
+  ```kotlin
+  @Test
+  fun testUseFunction() = runBlocking<Unit> {
+      //        var br = BufferedReader(FileReader("E:\\test\\data.txt"))
+      //        with(br) {
+      //            var line: String?
+      //            try {
+      //                while (true) {
+      //                    line = readLine() ?: break
+      //                    println(line)
+      //                }
+      //            }catch (e: Exception) {
+      //                e.printStackTrace()
+      //            }finally {
+      //                close()
+      //            }
+      //        }
+  
+      BufferedReader(FileReader("E:\\test\\data.txt")).use {
+          var line: String?
+          while (true) {
+              line = it.readLine() ?: break
+              println(line)
+          }
+      }
+  }
+  ```
+
+#### 2.2.4 不能取消的任务
+
+处于取消中状态的协程不能够挂起（运行不能取消的代码），当协程被取消后需要调用挂起函数，我们需要将清理任务的代码放置于`NonCancellable CoroutineContext`中，这样会挂起运行中的代码，并保持协程的取消中状态直到任务处理完成
+
+```kotlin
+@Test
+fun testCancelWithNonCancellable() = runBlocking<Unit> {
+    val job = launch {
+        try {
+            repeat(1000) { i ->
+                          println("job I'm sleeping $i ...")
+                          delay(500L)
+                         }
+        }catch (e: Exception) {
+            e.printStackTrace()
+        }finally {
+            println("job: I'm running finally")
+            withContext(NonCancellable){ //如果不放在NonCancellable CoroutineContext 中以下代码不会被执行
+                delay(1000)
+                println("job: And I've just delayed for 1 sec because I'm non-cancellable")
+            }
+        }
+    }
+
+    delay(1300)
+    println("main: I'm tired of waiting!")
+    job.cancelAndJoin()
+    println("main: Now I can quit.")
+}
+//    job I'm sleeping 0 ...
+//    job I'm sleeping 1 ...
+//    job I'm sleeping 2 ...
+//    main: I'm tired of waiting!
+//    kotlinx.coroutines.JobCancellationException: StandaloneCoroutine was cancelled;
+//    job: I'm running finally
+//    job: And I've just delayed for 1 sec because I'm non-cancellable
+//    main: Now I can quit.
+```
+
+#### 2.2.5 超时任务
+
+很多情况下取消一个协程的理由是它有可能超时，`withTimeoutOrNull`通过返回`null`来进行超时操作，从而替代抛出一个异常
+
+```kotlin
+@Test
+fun testDealWithTimeout() = runBlocking<Unit> {
+    //    withTimeout(1300) {
+    //        repeat(1000) { i ->
+    //            println("job: I'm sleeping $i ...")
+    //            delay(500)
+    //        }
+    //    }
+    //job: I'm sleeping 0 ...
+    //job: I'm sleeping 1 ...
+    //job: I'm sleeping 2 ...
+    //Timed out waiting for 1300 ms
+    //kotlinx.coroutines.TimeoutCancellationException: Timed out waiting for 1300 ms
+
+    val result = withTimeoutOrNull(1300) {
+        repeat(1000) { i ->
+                      println("job: I'm sleeping $i ...")
+                      delay(500)
+                     }
+        "Done"
+    }
+    println("Result is $result")
+    //        job: I'm sleeping 0 ...
+    //        job: I'm sleeping 1 ...
+    //        job: I'm sleeping 2 ...
+    //        Result is null
+}
+```
+
+
+
+​	
+
