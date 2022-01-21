@@ -23,8 +23,12 @@ class MainActivity : AppCompatActivity(), CoroutineScope by MainScope(){
     private lateinit var btnSubmitByCoroutine: Button
     private lateinit var btnMainScope: Button
     private lateinit var btnMvvm: Button
+    private lateinit var btnException: Button
 
     //private val mainScope = MainScope()
+    private val handler = CoroutineExceptionHandler { _, exception ->
+        Log.e("sty", "Caught $exception")
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -41,6 +45,9 @@ class MainActivity : AppCompatActivity(), CoroutineScope by MainScope(){
         btnSubmitByCoroutine = findViewById(R.id.btn_submit_by_coroutine)
         btnMainScope = findViewById(R.id.btn_main_scope)
         btnMvvm = findViewById(R.id.btn_mvvm)
+        btnException = findViewById(R.id.btn_exception)
+
+
 
         tvText.text = "Jack"
         btnSubmitByAsyncTask.setOnClickListener {
@@ -79,6 +86,14 @@ class MainActivity : AppCompatActivity(), CoroutineScope by MainScope(){
         btnMvvm.setOnClickListener {
             val intent = Intent(this, MvvmActivity::class.java)
             startActivity(intent)
+        }
+
+        btnException.setOnClickListener {
+            //GlobalScope.launch(handler) {
+            GlobalScope.launch {
+                Log.d("sty", "on exception clicked")
+                "abc".substring(10)
+            }
         }
     }
 
