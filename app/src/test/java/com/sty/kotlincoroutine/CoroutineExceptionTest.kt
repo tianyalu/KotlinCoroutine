@@ -2,9 +2,10 @@ package com.sty.kotlincoroutine
 
 import kotlinx.coroutines.*
 import org.junit.Test
-import java.lang.IndexOutOfBoundsException
+import java.io.IOException
 import kotlin.ArithmeticException
 import kotlin.IllegalArgumentException
+import kotlin.IndexOutOfBoundsException
 import kotlin.coroutines.CoroutineContext
 
 /**
@@ -231,5 +232,67 @@ class CoroutineExceptionTest {
     //Child is cancelled
     //Parent is not cancelled
 
+    @Test
+    fun testCancelAndException2() = runBlocking<Unit> {
+        val handler = CoroutineExceptionHandler{ _, exception ->
+            println("Caught $exception")
+        }
 
+        val job = GlobalScope.launch(handler) {
+            launch {
+                try {
+                    delay(Long.MAX_VALUE)
+                }finally {
+                    withContext(NonCancellable) {
+                        println("Children are cancelled, but exception is not handled until all children terminate")
+                        delay(100)
+                        println("The first child finished its non cancellable block")
+                    }
+                }
+            }
+
+            launch {
+                delay(10)
+                println("Second child throws an exception")
+                throw ArithmeticException()
+            }
+        }
+        job.join()
+    }
+    //Second child throws an exception
+    //Children are cancelled, but exception is not handled until all children terminate
+    //The first child finished its non cancellable block
+    //Caught java.lang.ArithmeticException
+
+    @Test
+    fun testExceptionAggregation() = runBlocking<Unit> {
+        val handler = CoroutineExceptionHandler{ _, exception ->
+            println("Caught 1.$exception 2.${exception.suppressed.contentToString()}")
+        }
+
+        val job = GlobalScope.launch(handler) {
+            launch {
+                try {
+                    delay(Long.MAX_VALUE)
+                }finally {
+                    throw ArithmeticException() //2
+                }
+            }
+
+            launch {
+                try {
+                    delay(Long.MAX_VALUE)
+                }finally {
+                    throw IndexOutOfBoundsException() //3
+                }
+            }
+
+            launch {
+                delay(100)
+                throw IOException() //1
+            }
+        }
+        job.join()
+    }
+    //Caught 1.java.io.IOException 2.[java.lang.IndexOutOfBoundsException, java.lang.ArithmeticException]
 }

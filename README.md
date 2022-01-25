@@ -894,3 +894,75 @@ fun testCancelAndException() = runBlocking<Unit> {
 //Parent is not cancelled
 ```
 
+```kotlin
+@Test
+fun testCancelAndException2() = runBlocking<Unit> {
+    val handler = CoroutineExceptionHandler{ _, exception ->
+                                            println("Caught $exception")
+                                           }
+
+    val job = GlobalScope.launch(handler) {
+        launch {
+            try {
+                delay(Long.MAX_VALUE)
+            }finally {
+                withContext(NonCancellable) {
+                    println("Children are cancelled, but exception is not handled until all children terminate")
+                    delay(100)
+                    println("The first child finished its non cancellable block")
+                }
+            }
+        }
+
+        launch {
+            delay(10)
+            println("Second child throws an exception")
+            throw ArithmeticException()
+        }
+    }
+    job.join()
+}
+//Second child throws an exception
+//Children are cancelled, but exception is not handled until all children terminate
+//The first child finished its non cancellable block
+//Caught java.lang.ArithmeticException
+```
+
+#### 3.2.10 异常聚合
+
+当协程的多个子协程因为异常而失败时，一般情况下取第一个异常进行处理。在第一个异常之后发生的所有其它异常，都将被绑定到第一个异常之上。
+
+```kotlin
+@Test
+fun testExceptionAggregation() = runBlocking<Unit> {
+    val handler = CoroutineExceptionHandler{ _, exception ->
+                                            println("Caught 1.$exception 2.${exception.suppressed.contentToString()}")
+                                           }
+
+    val job = GlobalScope.launch(handler) {
+        launch {
+            try {
+                delay(Long.MAX_VALUE)
+            }finally {
+                throw ArithmeticException() //2
+            }
+        }
+
+        launch {
+            try {
+                delay(Long.MAX_VALUE)
+            }finally {
+                throw IndexOutOfBoundsException() //3
+            }
+        }
+
+        launch {
+            delay(100)
+            throw IOException() //1
+        }
+    }
+    job.join()
+}
+//Caught 1.java.io.IOException 2.[java.lang.IndexOutOfBoundsException, java.lang.ArithmeticException]
+```
+
