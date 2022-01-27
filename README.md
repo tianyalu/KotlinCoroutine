@@ -966,3 +966,366 @@ fun testExceptionAggregation() = runBlocking<Unit> {
 //Caught 1.java.io.IOException 2.[java.lang.IndexOutOfBoundsException, java.lang.ArithmeticException]
 ```
 
+## 四、`Flow`-- 异步流
+
+### 4.1 认识`Flow`
+
+#### 4.1.1 如何表示多个值？
+
+挂起函数可以异步地返回单个值，但是该如何异步返回多个计算好的值呢？
+
+异步返回多个值的方案：
+
+> 1. 集合
+> 2. 序列
+> 3. 挂起函数
+> 4. `Flow`
+
+#### 4.1.2 `Flow`与其它方式的区别
+
+* 名为`flow`的`Flow`类型构建器函数；
+* `flow{...}`构建块中的代码可以挂起；
+* 函数`simple`不再标有`suspend`修饰符；
+* 流使用`emit`函数发射值；
+* 流使用`collect`函数收集值。
+
+![image-20220125210317738](https://gitee.com/tianyalusty/pic-go-repository/raw/master/img/202201252103888.png)
+
+#### 4.1.3 `Flow`应用--文件下载
+
+在`Android`中，文件下载是`Flow`的一个非常典型的应用：
+
+![image-20220125210501802](https://gitee.com/tianyalusty/pic-go-repository/raw/master/img/202201252105867.png)
+
+#### 4.1.4 冷流
+
+`Flow`是一种类似于序列的**冷流**，`flow`构建器中的代码直到流被收集的时候才运行。
+
+```kotlin
+fun simpleFlow2() = flow<Int> {
+    println("Flow started")
+    for (i in 1..3) {
+        delay(1000)
+        emit(i) //发射，产生一个元素
+    }
+}
+
+@Test
+fun testFlowIsCold() = runBlocking<Unit> {
+    val flow = simpleFlow2()
+    println("Calling collect...")
+    flow.collect {value -> println(value)}
+    println("Calling collect again...")
+    flow.collect {value -> println(value)}
+}
+//Calling collect...
+//Flow started
+//1
+//2
+//3
+//Calling collect again...
+//Flow started
+//1
+//2
+//3
+```
+
+#### 4.1.5 流的连续性
+
+* 流的每次单独收集都是按顺序执行的，触发使用特殊操作符；
+* 从上游到下游每个过渡操作符都会处理每个发射出的值，然后再交给末端操作符。
+
+```kotlin
+@Test
+fun testFlowContinuation() = runBlocking<Unit> {
+    (1..5).asFlow().filter {
+        it % 2 == 0
+    }.map {
+        "string $it"
+    }.collect {
+        println("Collect $it")
+    }
+}
+//Collect string 2
+//Collect string 4
+```
+
+#### 4.1.6 流构建器
+
+* `flowOf`构建器定义了一个发射固定值集的流；
+* 使用`.asFlow()`扩展函数，可以将各种集合与序列转换为流。
+
+```kotlin
+@Test
+fun testFlowBuilder() = runBlocking<Unit> {
+    //        flowOf("one", "two", "three")
+    //            .onEach { delay(1000) }
+    //            .collect { println(it) }
+
+    (1..3).asFlow()
+    .collect{ println(it)}
+}
+```
+
+#### 4.1.7 流的上下文
+
+* 流的收集总是在调用协程的上下文中发生，流的该属性称为**上下文保存**；
+
+  ```kotlin
+  fun simpleFlow3() = flow<Int> {
+      println("Flow started ${Thread.currentThread().name}")
+      for (i in 1..3) {
+          delay(1000)
+          emit(i) //发射，产生一个元素
+      }
+  }
+  
+  @Test
+  fun testFlowContext() = runBlocking<Unit> {
+      simpleFlow3().collect{ println("Collected $it ${Thread.currentThread().name}")}
+  }
+  //Flow started Test worker @coroutine#1
+  //Collected 1 Test worker @coroutine#1
+  //Collected 2 Test worker @coroutine#1
+  //Collected 3 Test worker @coroutine#1
+  ```
+
+* `flow{...}`构建器中的代码必须遵循上下文保存属性，并且不允许从其它上下文中发射（`emit`）；
+
+* **`flowOn`操作符** 用于更改流发射的上下文。
+
+  ```kotlin
+  fun simpleFlow4() = flow<Int> {
+      println("Flow started ${Thread.currentThread().name}")
+      for (i in 1..3) {
+          delay(1000)
+          emit(i) //发射，产生一个元素
+      }
+  }.flowOn(Dispatchers.Default)
+  
+  @Test
+  fun testFlowOn() = runBlocking<Unit> {
+      simpleFlow4().collect{ println("Collected $it ${Thread.currentThread().name}")}
+  }
+  //Flow started DefaultDispatcher-worker-1 @coroutine#2
+  //Collected 1 Test worker @coroutine#1
+  //Collected 2 Test worker @coroutine#1
+  //Collected 3 Test worker @coroutine#1
+  ```
+
+#### 4.1.8 启动流
+
+使用`launchIn`代替`collect`我们可以在单独的协程中启动流的收集。
+
+```kotlin
+fun events() = (1..3)
+.asFlow()
+.onEach { delay(100) }
+.flowOn(Dispatchers.Default)
+
+@Test
+fun testFlowLaunch() = runBlocking<Unit> {
+    events().onEach { println("Event: $it ${Thread.currentThread().name}") }
+    .launchIn(CoroutineScope(Dispatchers.IO))
+    .join()
+    //.launchIn(this)
+}
+//Event: 1 DefaultDispatcher-worker-3 @coroutine#2
+//Event: 2 DefaultDispatcher-worker-1 @coroutine#2
+//Event: 3 DefaultDispatcher-worker-1 @coroutine#2
+```
+
+#### 4.1.9 流的取消
+
+流采用与协程同样的协作取消，像往常一样，流的收集可以是当流在一个可取消的挂起函数（例如`delay`）中挂起的时候取消。
+
+```kotlin
+fun simpleFlow5() = flow<Int> {
+    for (i in 1..3) {
+        delay(1000)
+        emit(i) //发射，产生一个元素
+        println("Emitting $i")
+    }
+}
+
+@Test
+fun testFlowCancel() = runBlocking<Unit> {
+    withTimeoutOrNull(2500) {
+        simpleFlow5().collect { println(it)}
+    }
+    println("Done")
+}
+//1
+//Emitting 1
+//2
+//Emitting 2
+//Done
+```
+
+#### 4.1.10 流的取消检测
+
+* 为方便起见，流构建器对每个发射值进行附加的`ensureActive`检测以进行取消，这意味着从`flow{...}`发出的繁忙循环是可以取消的；
+
+  ```kotlin
+  @Test
+  fun testFlowCancelCheck1() = runBlocking<Unit> {
+      flow<Int> {
+          for (i in 1..5) {
+              emit(i)
+              println("Emitting $i")
+          }
+      }.collect{
+          println(it)
+          if(it == 3) {
+              cancel()
+          }
+      }
+  }
+  //1
+  //Emitting 1
+  //2
+  //Emitting 2
+  //3
+  //Emitting 3
+  //BlockingCoroutine was cancelled
+  //kotlinx.coroutines.JobCancellationException: BlockingCoroutine was cancelled;
+  ```
+
+* 出于性能原因，大多数其它流操作不会自行执行其它取消检测，在协程处于繁忙循环的情况下，必须明确检测是否取消；
+
+* 通过`cancellable`操作符来执行此操作。
+
+  ```kotlin
+  @Test
+  fun testFlowCancelCheck2() = runBlocking<Unit> {
+      (1..5).asFlow()
+      .cancellable() //不加这个虽然也会报取消异常，但是依然会打印4、5，因为繁忙循环不会自行执行其它取消检测
+      .collect {
+          println(it)
+          if(it == 3) {
+              cancel()
+          }
+      }
+  }
+  //1
+  //2
+  //3
+  //BlockingCoroutine was cancelled
+  //kotlinx.coroutines.JobCancellationException: BlockingCoroutine was cancelled;
+  ```
+
+#### 4.1.11 背压
+
+产生原因：生产效率 > 消费效率
+
+处理方式：
+
+* `buffer()`：并发运行流中发射元素的代码；
+* `conflate()`：合并发射项，不对每个值进行处理；
+* `collectLatest()`：取消并重新发射最后一个值；
+* 当必须更改`CoroutineDispatcher`时，`flowOn`操作符使用了相同的缓冲机制，但是`buffer`函数显式地请求缓冲而 **不改变执行上下文** 。
+
+### 4.2 操作符
+
+#### 4.2.1 过度流操作符(转换操作符)`map/transform`
+
+* 可以使用操作符转换流，就像使用集合与序列一样；
+* 过渡操作符应用于上游流，并返回下游流；
+* 这些操作符也是冷操作符，就像流一样，这类操作符本身不是挂起函数；
+* 它运行速度很快，返回新的转换流的定义。
+
+**`map`**
+
+```kotlin
+@Test
+fun testTransformFlowOperator1() = runBlocking<Unit> {
+    (1..3).asFlow()
+    .map {
+        delay(1000)
+        "response $it"
+    }.collect {
+        println(it)
+    }
+}
+//response 1
+//response 2
+//response 3
+```
+
+**`transform`**
+
+```kotlin
+suspend fun performRequest(request: Int): String {
+    delay(1000)
+    return "response $request"
+}
+
+@Test
+fun testTransformFlowOperator2() = runBlocking<Unit> {
+    (1..3).asFlow()
+    .transform {
+        emit("Making request $it")
+        emit(performRequest(it))
+    }.collect {
+        println(it)
+    }
+}
+//Making request 1
+//response 1
+//Making request 2
+//response 2
+//Making request 3
+//response 3
+```
+
+#### 4.2.2 限长操作符`take`
+
+```kotlin
+@Test
+fun testLimitFlowOperator() = runBlocking<Unit> {
+    flow<Int> {
+        try {
+            emit(1)
+            emit(2)
+            println("This line will not execute")
+            emit(3)
+        } finally {
+            println("Finally in numbers")
+        }
+    }.take(2)
+    .collect { println(it)}
+}
+//1
+//2
+//Finally in numbers
+```
+
+#### 4.2.3 末端流操作符
+
+末端流操作符是在流上用于 **启动流收集的挂起函数** 。`collect`是最基础的末端操作符，但是还有另外一些更方便使用的末端操作符：
+
+* 转化为各种集合，例如`toList`与`toSet`;
+
+* 获取第一个（`first`）值与确保流发射单个（`single`）值的操作；
+
+* 使用`reduce`与`fold`将流规约到单个值。
+
+  ```kotlin
+  @Test
+  fun testTerminalOperator() = runBlocking<Unit> {
+      val sum = (1..5).asFlow()
+      .map { it * it }
+      .reduce { accumulator, value ->
+               println("$accumulator --> $value")
+               accumulator + value 
+              }
+      println(sum)
+  }
+  //1 --> 4
+  //5 --> 9
+  //14 --> 16
+  //30 --> 25
+  //55
+  ```
+
+  
