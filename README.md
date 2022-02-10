@@ -1328,4 +1328,98 @@ fun testLimitFlowOperator() = runBlocking<Unit> {
   //55
   ```
 
+#### 4.2.4 组合流操作符`zip`
+
+  就像`Kotlin`标准库中的`Sequence.zip`扩展函数一样，流拥有一个`zip`操作符用于组合两个流中的相关值：
+
+  ```kotlin
+  @Test
+  fun testZipOperator() = runBlocking<Unit> {
+      val numbers = (1..3).asFlow().onEach { delay(300) }
+      val strs = flowOf("One", "Two", "Three").onEach { delay(400) }
+      val startTime = System.currentTimeMillis()
+      numbers.zip(strs) {
+          a, b -> "$a -> $b"
+      }.collect{
+          println("$it at ${System.currentTimeMillis() - startTime} ms from start")
+      }
+  }
+  //1 -> One at 433 ms from start
+  //2 -> Two at 840 ms from start
+  //3 -> Three at 1247 ms from start
+  ```
+
+#### 4.2.5 展平流操作符
+
+流表示异步接收的值序列，所以很容易遇到这样的情况：每个值都会触发对另一个值序列的请求，然而，由于流具有异步的性质，因此需要不同的展平模式，为此存在一系列的流展平操作符：
+
+* `flatMapConcat`连接模式
+
+  ```kotlin
+  fun requestFlow(i: Int) = flow<String> {
+      emit("$i: First")
+      delay(500)
+      emit("$i: Second")
+  }
   
+  @Test
+  fun testFlatMapConcatOperator() = runBlocking<Unit> {
+      val startTime = System.currentTimeMillis()
+      (1..3).asFlow()
+      .onEach { delay(100) }
+      //.map{ requestFlow(it)} // --> Flow
+      .flatMapConcat { requestFlow(it) }
+      .collect {
+          println("$it at ${System.currentTimeMillis() - startTime} ms from start")
+      }
+  }
+  //1: First at 156 ms from start
+  //1: Second at 664 ms from start
+  //2: First at 773 ms from start
+  //2: Second at 1274 ms from start
+  //3: First at 1382 ms from start
+  //3: Second at 1898 ms from start
+  ```
+
+* `flatMapMerge`合并模式
+
+  ```kotlin
+  @Test
+  fun testFlatMapMergeOperator() = runBlocking<Unit> {
+      val startTime = System.currentTimeMillis()
+      (1..3).asFlow()
+      .onEach { delay(100) }
+      .flatMapMerge { requestFlow(it) }
+      .collect {
+          println("$it at ${System.currentTimeMillis() - startTime} ms from start")
+      }
+  }
+  //1: First at 178 ms from start
+  //2: First at 280 ms from start
+  //3: First at 392 ms from start
+  //1: Second at 686 ms from start
+  //2: Second at 795 ms from start
+  //3: Second at 907 ms from start
+  ```
+
+* `flatMapLatest`最新展平模式
+
+  ```kotlin
+  @Test
+  fun testFlatMaLatestOperator() = runBlocking<Unit> {
+      val startTime = System.currentTimeMillis()
+      (1..3).asFlow()
+      .onEach { delay(100) }
+      .flatMapLatest { requestFlow(it) }
+      .collect {
+          println("$it at ${System.currentTimeMillis() - startTime} ms from start")
+      }
+  }
+  //1: First at 167 ms from start
+  //2: First at 301 ms from start
+  //3: First at 412 ms from start
+  //3: Second at 930 ms from start
+  ```
+
+![image-20220210200200162](https://gitee.com/tianyalusty/pic-go-repository/raw/master/img/202202102002258.png)
+
