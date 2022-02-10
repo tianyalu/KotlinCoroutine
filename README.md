@@ -1423,3 +1423,82 @@ fun testLimitFlowOperator() = runBlocking<Unit> {
 
 ![image-20220210200200162](https://gitee.com/tianyalusty/pic-go-repository/raw/master/img/202202102002258.png)
 
+### 4.3 异常处理
+
+#### 4.3.1 流的异常处理
+
+当运算符中的发射器或代码抛出异常时，有几种处理异常的方法：
+
+* `try/catch`块 --> 处理下游异常
+
+  ```kotlin
+  fun simpleFlow() = flow<Int> {
+      for(i in 1..3) {
+          println("Emitting $i")
+          emit(i)
+      }
+  }
+  
+  //下游捕获异常
+  @Test
+  fun testFlowException() = runBlocking<Unit> {
+      try {
+          simpleFlow().collect {
+              println(it)
+              check(it <= 1) { println("Collected $it") }
+          }
+      }catch (e: Throwable) {
+          println("Caught $e")
+      }
+  }
+  //Emitting 1
+  //1
+  //Emitting 2
+  //2
+  //Collected 2
+  //Caught java.lang.IllegalStateException: kotlin.Unit
+  ```
+
+* `catch`函数 -->处理上游异常
+
+  ```kotlin
+  //上游捕获异常
+  @Test
+  fun testFlowException2() = runBlocking<Unit> {
+      flow {
+          throw ArithmeticException("Div 0")
+          emit(1)
+      }.catch { e: Throwable ->
+               println("caught $e")
+               emit(10) //在异常中恢复
+              }.flowOn(Dispatchers.IO)
+      .collect{ println(it) }
+  }
+  //caught java.lang.ArithmeticException: Div 0
+  //10
+  ```
+
+#### 4.3.2 流的完成
+
+当流收集完成时（普通情况或异常情况），它可能需要执行一个动作
+
+* 命令式`finally`块
+
+  ```kotlin
+      @Test
+      fun testFlowCompleteInFinally() = runBlocking<Unit> {
+          try {
+              (1..3).asFlow().collect{ println(it) }
+          } finally {
+              println("Done")
+          }
+      }
+      //1
+      //2
+      //3
+      //Done
+  ```
+
+  
+
+* `onCompletion`声明式处理
