@@ -8,7 +8,7 @@ import org.junit.Test
 /**
  * Author: ShiTianyi
  * Time: 2022/2/10 0010 20:26
- * Description:
+ * Description: 流的异常处理
  */
 class CoroutineFlowExceptionTest {
 

@@ -1485,20 +1485,521 @@ fun testLimitFlowOperator() = runBlocking<Unit> {
 * 命令式`finally`块
 
   ```kotlin
-      @Test
-      fun testFlowCompleteInFinally() = runBlocking<Unit> {
-          try {
-              (1..3).asFlow().collect{ println(it) }
-          } finally {
-              println("Done")
-          }
+  @Test
+  fun testFlowCompleteInFinally() = runBlocking<Unit> {
+      try {
+          (1..3).asFlow().collect{ println(it) }
+      } finally {
+          println("Done")
+      }
+  }
+  //1
+  //2
+  //3
+  //Done
+  ```
+
+* `onCompletion`声明式处理 --> 可以拿到上游/下游的异常信息
+
+  ```kotlin
+  @Test
+  fun testFlowCompleteInCompletion1() = runBlocking<Unit> {
+      flow {
+          throw ArithmeticException("Div 0")
+          emit(1)
+      }.onCompletion { e -> //可以拿到上游的异常（但不会阻止崩溃 --> 需要用catch）
+                      if(e != null) println("Flow completed with exception: $e")
+                     }.collect { println(it) }
+      //Flow completed with exception: java.lang.ArithmeticException: Div 0
+      //Div 0
+      //java.lang.ArithmeticException: Div 0
+  }
+  
+  @Test
+  fun testFlowCompleteInCompletion2() = runBlocking<Unit> {
+      (1..3).asFlow()
+      .onCompletion { e -> //可以拿到下游的异常（但不会阻止崩溃 --> 需要用catch）
+                     if(e != null) println("Flow completed with exception: $e")
+                    }.collect {
+          println(it)
+          check(it <= 1) { println("Collected $it") }
       }
       //1
       //2
-      //3
-      //Done
+      //Collected 2
+      //Flow completed with exception: java.lang.IllegalStateException: kotlin.Unit
+      //kotlin.Unit
+      //java.lang.IllegalStateException: kotlin.Unit
+  }
   ```
 
-  
+## 五、通道-多路复用-并发安全
 
-* `onCompletion`声明式处理
+### 5.1 通道
+
+#### 5.1.1 认识通道
+
+`Channel`实际上是一个并发安全的队列，它可以用来连接协程，实现不同协程的通信。
+
+![image-20220211143505839](https://gitee.com/tianyalusty/pic-go-repository/raw/master/img/202202111435907.png)
+
+```kotlin
+@Test
+fun testChannelKnown() = runBlocking<Unit> {
+    val channel = Channel<Int>()
+    //生产者
+    val producer = GlobalScope.launch {
+        var i = 0
+        while (true) {
+            delay(1000)
+            channel.send(++i)
+            println("send $i")
+        }
+    }
+
+    //消费者
+    val consumer = GlobalScope.launch {
+        while (true) {
+            delay(2000)
+            val element = channel.receive()
+            println("receive $element")
+        }
+    }
+    joinAll(producer, consumer)
+}
+//send 1
+//receive 1
+//send 2
+//receive 2
+//send 3
+//receive 3
+//...
+```
+
+#### 5.1.2 `Channel`的容量
+
+`Channel`实际上就是一个队列，队列中一定存在缓冲区，那么一旦这个缓冲区满了，并且也一直没有人调用`receive`取走函数，`send`就需要挂起。故意让接收端的节奏放慢，发现`send`总是会挂起，直到`receive`之后才会继续往下走（代码同5.1.1）。
+
+#### 5.1.3 迭代`Channel`
+
+`Channel`本身确实像序列，所以我们在读取的时候可以直接获取一个`Channel`的`iterator`.
+
+```kotlin
+@Test
+fun testChannelIterator() = runBlocking<Unit> {
+    val channel = Channel<Int>(Channel.UNLIMITED)
+    //生产者
+    val producer = GlobalScope.launch {
+        for(i in 1..5) {
+            channel.send(i * i)
+            println("send ${i * i}")
+        }
+    }
+
+    //消费者
+    val consumer = GlobalScope.launch {
+        //            val iterator = channel.iterator()
+        //            while (iterator.hasNext()) {
+        //                val element = iterator.next()
+        //                println("receive $element")
+        //                delay(2000)
+        //            }
+
+        for (element in channel) {
+            println("receive $element")
+            delay(2000)
+        }
+    }
+    joinAll(producer, consumer)
+}
+//send 1
+//send 4
+//send 9
+//send 16
+//send 25
+//receive 1
+//receive 4
+//receive 9
+//receive 16
+//receive 25
+```
+
+#### 5.1.4 `produce`与`actor`
+
+`produce`和`actor`是构造生产者和消费者的便捷方法，我们可以通过`produce`方法启动一个生产者协程，并返回一个`ReceiveChannel`，其它协程就可以用这个`Channel`来接收数据了；反过来我们可以用`actor`启动一个消费者协程。
+
+```kotlin
+@Test
+fun testFastProducerChannel() = runBlocking<Unit> {
+    val receiveChannel: ReceiveChannel<Int> = GlobalScope.produce {
+        repeat(100) {
+            delay(1000)
+            send(it)
+        }
+    }
+
+    val consumer = GlobalScope.launch {
+        for(i in receiveChannel) {
+            println("received: $i")
+        }
+    }
+    consumer.join()
+}
+//received: 0
+//received: 1
+//received: 2
+//...
+
+@Test
+fun testFastConsumerChannel() = runBlocking<Unit> {
+    val sendChannel: SendChannel<Int> = GlobalScope.actor<Int> {
+        while (true) {
+            val element = receive()
+            println(element)
+        }
+    }
+
+    val producer = GlobalScope.launch {
+        for(i in 1..3) {
+            sendChannel.send(i)
+        }
+    }
+    producer.join()
+}
+//1
+//2
+//3
+```
+
+#### 5.1.5 `Channel`的关闭
+
+* `produce`和`actor`返回的`Channel`都会随着对应的协程执行完毕而关闭，也正是这样，`Channel`才被称为 **热数据流** ；
+* 对于一个`Channel`，如果我们调用了它的`close`方法，它会立即停止接收新元素，也就是说这时它的 **`isClosedForSend`** 会立即返回`true`；而由于`Channel`缓冲区的存在，这时候可能还有一些元素没有被处理完，因此要等所有的元素都被读取之后 **`isClosedForReceive`** 才会返回`true`；
+* `Channel`的生命周期最好由主导方来维护，建议 **由主导的一方实现关闭** 。
+
+```kotlin
+@Test
+fun testCloseChannel() = runBlocking<Unit> {
+    val channel = Channel<Int>(3)
+    //生产者
+    val producer = GlobalScope.launch {
+        List(3) {
+            channel.send(it)
+            println("send $it")
+        }
+        channel.close()
+        println(("close channel " +
+                 "| - ClosedForSend: ${channel.isClosedForSend} " +
+                 "| - ClosedForReceive: ${channel.isClosedForReceive}").trimMargin())
+    }
+
+    //消费者
+    val consumer = GlobalScope.launch {
+        for (element in channel) {
+            println("receive $element")
+            delay(1000)
+        }
+        println(("close channel " +
+                 "| - ClosedForSend: ${channel.isClosedForSend} " +
+                 "| - ClosedForReceive: ${channel.isClosedForReceive}").trimMargin())
+    }
+    joinAll(producer, consumer)
+}
+//send 0
+//receive 0
+//send 1
+//send 2
+//close channel | - ClosedForSend: true | - ClosedForReceive: false
+//receive 1
+//receive 2
+//close channel | - ClosedForSend: true | - ClosedForReceive: true
+```
+
+#### 5.1.6 `BroadcastChannel`
+
+前面提到，发送端和接收端在`Channel`中存在一对多的情形，从数据处理本身来讲，虽然有多个接收端，但是同一个元素只会被一个接收端读到，但广播则不然： **多个接收端不存在互斥行为** 。
+
+![微信截图_20220211174233](https://gitee.com/tianyalusty/pic-go-repository/raw/master/img/202202111744402.png)
+
+```kotlin
+@Test
+fun testBroadcastChannel() = runBlocking<Unit> {
+    //val broadcastChannel = BroadcastChannel<Int>(Channel.BUFFERED)
+    //普通channel可以转换为BroadcastChannel
+    val channel = Channel<Int>()
+    val broadcastChannel = channel.broadcast(3)
+    val producer = GlobalScope.launch {
+        List(3) {
+            delay(100)
+            broadcastChannel.send(it)
+        }
+        broadcastChannel.close()
+    }
+
+    List(3) { index ->
+             GlobalScope.launch {
+                 val receiveChannel = broadcastChannel.openSubscription()
+                 for(i in receiveChannel) {
+                     println("[#$index] received: $i")
+                 }
+             }
+            }.joinAll()
+}
+//[#0] received: 0
+//[#2] received: 0
+//[#1] received: 0
+//[#0] received: 1
+//[#2] received: 1
+//[#1] received: 1
+//[#0] received: 2
+//[#1] received: 2
+//[#2] received: 2
+```
+
+### 5.2 `select` - 多路复用
+
+#### 5.2.1 什么是多路复用
+
+数据通信系统或计算机网络系统中，传输媒体的带宽或容量往往会大于传输单一信号的需求，为了有效地利用通信线路，希望 **一个信道同时传输多路信号** ，这就是所谓的多路复用技术（`Multiplexing`）。
+
+![image-20220211175832001](https://gitee.com/tianyalusty/pic-go-repository/raw/master/img/202202111758076.png)
+
+#### 5.2.2 复用多个`await`
+
+两个`API`分别从网络和本地缓存获取数据，期望哪个先返回就先用哪个做展示。
+
+![image-20220211180130587](https://gitee.com/tianyalusty/pic-go-repository/raw/master/img/202202111801658.png)
+
+```kotlin
+private val cachePath = "E://test//coroutine.cache"
+private val gson = Gson()
+
+data class Response<T>(val value: T, val isLocal: Boolean)
+
+fun CoroutineScope.getUserFromLocal(lastName: String) = async(Dispatchers.IO){
+    //delay(1000) //故意的延迟
+    File(cachePath).readText().let{
+        gson.fromJson(it, User::class.java)
+    }
+}
+
+fun CoroutineScope.getUserFromRemote(lastName: String) = async(Dispatchers.IO) {
+    userServiceApi.getUser()
+}
+
+@Test
+fun testSelectAwait() = runBlocking<Unit> {
+    GlobalScope.launch {
+        val localRequest = getUserFromLocal("xxx")
+        val remoteRequest = getUserFromRemote("xxx")
+        val userResponse = select<Response<User>> {
+            localRequest.onAwait{ Response(it, true)}
+            remoteRequest.onAwait{ Response(it, false)}
+        }
+        userResponse.value?.let{ println(it) }
+    }.join()
+}
+//User(lastName=Jack lall, age=23)
+```
+
+#### 5.2.3 复用多个`Channel`
+
+跟`await`类似，会接收到最快的那个`channel`消息。
+
+```kotlin
+@Test
+fun testSelectChannel() = runBlocking<Unit> {
+    val channels = listOf(Channel<Int>(), Channel<Int>())
+    GlobalScope.launch {
+        delay(100)
+        channels[0].send(200)
+    }
+
+    GlobalScope.launch {
+        delay(50)
+        channels[1].send(100)
+    }
+
+    val result = select<Int?> {
+        channels.forEach { channel ->
+                          channel.onReceive { it }
+                         }
+    }
+    println(result)
+}
+//100
+```
+
+#### 5.2.4 `SelectClause`
+
+我们怎么知道哪些事件可以被`select`呢？其实所有能够被`select`的事件都是`SelectClauseN`类型，包括：
+
+* `SelectClause0`：对应事件没有返回值，例如`join`没有返回值，那么`onJoin`就是`SelectClauseN`类型，使用时，`onJoin`的参数是一个无参函数；
+* `SelectClause`：对应事件有返回值，签名的`onAwait`和`onReceive`都是此类情况；
+* `SelectClause2`：对应事件有返回值，此外还需要一个额外的参数，例如`Channel.onSend`有两个参数，第一个是`Channel`数据类型的值，表示即将发送的值，第二个是发送成功时的回调参数。
+
+如果我们想要确认挂起函数是否支持`select`，只需要查看其 **是否存在对应的`SelectClauseN`类型** 可回调即可。
+
+```kotlin
+@Test
+fun testSelectClause0() = runBlocking<Unit> {
+    val job1 = GlobalScope.launch {
+        delay(100)
+        println("job 1")
+    }
+    val job2 = GlobalScope.launch {
+        delay(10)
+        println("job 2")
+    }
+
+    select<Unit> {
+        job1.onJoin { println("job 1 onJoin") }
+        job2.onJoin { println("job 2 onJoin") }
+    }
+    delay(1000)
+}
+//job 2
+//job 2 onJoin
+//job 1
+
+@Test
+fun testSelectClause2() = runBlocking<Unit> {
+    val channels = listOf(Channel<Int>(), Channel<Int>())
+    println(channels)
+
+    launch(Dispatchers.IO) {
+        select<Unit?> {
+            launch {
+                delay(10)
+                channels[1].onSend(200) { sentChannel ->
+                                         println("sent on $sentChannel")
+                                        }
+            }
+            launch {
+                delay(100)
+                channels[0].onSend(100) { sentChannel ->
+                                         println("sent on $sentChannel")
+                                        }
+            }
+        }
+    }
+
+    GlobalScope.launch {
+        println(channels[0].receive())
+    }
+    GlobalScope.launch {
+        println(channels[1].receive())
+    }
+    delay(1000)
+}
+//[RendezvousChannel@61824c18{EmptyQueue}, RendezvousChannel@7ac5bc56{EmptyQueue}]
+//200
+```
+
+#### 5.2.5 使用`Flow`实现多路复用
+
+多数情况下，我可以通过构造合适的`Flow`来实现多路复用的效果。
+
+```kotlin
+@Test
+fun testSelectFlow() = runBlocking<Unit> {
+    //函数 -> 协程 -> Flow -> Flow合并
+    val name = "guess"
+    coroutineScope {
+        listOf(::getUserFromLocal, ::getUserFromRemote)
+        .map { function ->
+              function.call(name)
+             }.map { deferred ->
+                    flow { emit(deferred.await()) }
+                   }.merge()
+        .collect { user -> println(user) }
+    }
+}
+//User(lastName=Jack lall, age=23)
+//User(lastName=张三, age=18)
+```
+
+### 5.3 并发安全
+
+#### 5.3.1 不安全的并发访问
+
+我们使用线程在解决并发问题的时候总是会遇到线程安全的问题，而`Java`平台上的`Kotlin`协程实现免不了存在并发调度的情况，因此线程安全同样值得留意。
+
+```kotlin
+@Test
+fun testNotSafeConcurrent() = runBlocking<Unit> {
+    var count = 0
+    List(1000) {
+        GlobalScope.launch { count++ }
+    }.joinAll()
+    println(count)
+}
+//994
+
+@Test
+fun testSafeConcurrent() = runBlocking<Unit> {
+    var count = AtomicInteger(0)
+    List(1000) {
+        GlobalScope.launch { count.incrementAndGet() }
+    }.joinAll()
+    println(count)
+}
+//1000
+```
+
+#### 5.3.2 协程的并发工具
+
+除了我们在线程中常用的解决并发问题的手段之外，协程框架也提供了一些并发安全的工具，包括：
+
+* `Channel`：并发安全的消息通道，我们已经非常熟悉；
+* `Mutex`：轻量级锁，它的`lock`和`unlock`从语义上与线程锁比较类似，之所以轻量是因为它在获取不到锁时不会阻塞线程，而是挂起等待锁的释放；
+* `Semaphore`：轻量级信号量，信号量可以有多个，协程在获取到信号量后即可执行并发操作，当`Semaphore`的参数为1时，效果等价于`Mutex`。
+
+```kotlin
+@Test
+fun testSafeConcurrentMutex() = runBlocking<Unit> {
+    var count = 0
+    val mutex = Mutex()
+    List(1000) {
+        GlobalScope.launch {
+            mutex.withLock {
+                count++
+            }
+        }
+    }.joinAll()
+    println(count)
+}
+//1000
+
+@Test
+fun testSafeConcurrentSemaphore() = runBlocking<Unit> {
+    var count = 0
+    val semaphore = Semaphore(1)
+    List(1000) {
+        GlobalScope.launch {
+            semaphore.withPermit {
+                count++
+            }
+        }
+    }.joinAll()
+    println(count)
+}
+//1000
+```
+
+#### 5.3.3 避免访问外部可变状态
+
+编写函数时要求它不得访问外部状态，只能基于参数做运算，通过返回值提供运算结果。
+
+```kotlin
+@Test
+fun testAvoidAccessOuterVariable() = runBlocking<Unit> {
+    var count = 0
+    val result = count + List(1000){
+        GlobalScope.async { 1 }
+    }.map { it.await() }.sum()
+    println(result)
+}
+//1000
+```
+
