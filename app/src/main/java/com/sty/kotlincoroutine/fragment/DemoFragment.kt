@@ -26,8 +26,14 @@ class DemoFragment : Fragment() {
 
     override fun onActivityCreated(savedInstanceState: Bundle?) {
         super.onActivityCreated(savedInstanceState)
-        mBinding.btnFlowAndDownload.setOnClickListener {
-            findNavController().navigate(R.id.action_demoFragment_to_downloadFragment)
+        mBinding.apply {
+            btnFlowAndDownload.setOnClickListener {
+                findNavController().navigate(R.id.action_demoFragment_to_downloadFragment)
+            }
+
+            btnFlowAndRoom.setOnClickListener {
+                findNavController().navigate(R.id.action_demoFragment_to_userFragment)
+            }
         }
     }
 }

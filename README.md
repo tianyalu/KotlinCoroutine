@@ -2092,3 +2092,122 @@ object DownloadManager {
     }
 ```
 
+### 6.2 `Flow`与`Room`的应用
+
+核心代码如下：
+
+`UserFragment`
+
+```kotlin
+class UserFragment : Fragment() {
+    private val viewModel by viewModels<UserViewModel>()
+
+    private val mBinding: FragmentUserBinding by lazy {
+        FragmentUserBinding.inflate(layoutInflater)
+    }
+
+    override fun onCreateView(
+        inflater: LayoutInflater, container: ViewGroup?,
+        savedInstanceState: Bundle?
+    ): View? {
+        // Inflate the layout for this fragment
+        return mBinding.root
+    }
+
+    override fun onActivityCreated(savedInstanceState: Bundle?) {
+        super.onActivityCreated(savedInstanceState)
+
+        mBinding.apply {
+            btnAdd.setOnClickListener {
+                viewModel.insert(
+                    etId.text.toString().toInt(),
+                    etName.text.toString(),
+                    etAge.text.toString().toInt()
+                )
+            }
+        }
+
+        context?.let {
+            val adapter = UserAdapter(it)
+            mBinding.rvList.adapter = adapter
+            mBinding.rvList.layoutManager = LinearLayoutManager(it)
+            lifecycleScope.launchWhenCreated {
+                viewModel.getAll().collect { value ->
+                    adapter.setData(value)
+                }
+            }
+        }
+    }
+}
+```
+
+`UserViewModel`
+
+```kotlin
+class UserViewModel(app: Application): AndroidViewModel(app) {
+    fun insert(uid: Int, name: String, age: Int) {
+        viewModelScope.launch {
+            val user = User(uid, name, age)
+            AppDatabase.getInstance(getApplication())
+                .userDao()
+                .insert(user)
+            Log.d("sty", "insert user: $user")
+        }
+    }
+
+    fun getAll(): Flow<List<User>> {
+        return AppDatabase.getInstance(getApplication())
+            .userDao()
+            .getAll()
+            .catch { e -> e.printStackTrace() }
+            .flowOn(Dispatchers.IO)
+    }
+}
+```
+
+`User`
+
+```kotlin
+@Entity
+data class User(
+    @PrimaryKey val uid: Int,
+    @ColumnInfo(name = "first_name") val firstName: String,
+    @ColumnInfo(name = "age") val age: Int
+)
+```
+
+`UserDao`
+
+```kotlin
+@Dao
+interface UserDao {
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insert(user: User)
+
+    @Query("SELECT * FROM user")
+    fun getAll(): Flow<List<User>>
+}
+```
+
+`AppDatabase`
+
+```kotlin
+@Database(entities = [User::class], version = 1, exportSchema = false)
+abstract class AppDatabase : RoomDatabase() {
+    abstract fun userDao(): UserDao
+
+    companion object {
+        private var instance: AppDatabase? = null
+
+        fun getInstance(context: Context): AppDatabase {
+            return instance ?: synchronized(this) {
+                Room.databaseBuilder(context, AppDatabase::class.java, "user")
+                    .build().also{
+                        instance = it
+                    }
+            }
+        }
+    }
+}
+```
+
