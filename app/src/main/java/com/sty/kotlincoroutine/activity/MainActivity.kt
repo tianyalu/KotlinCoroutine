@@ -24,6 +24,7 @@ class MainActivity : AppCompatActivity(), CoroutineScope by MainScope(){
     private lateinit var btnMainScope: Button
     private lateinit var btnMvvm: Button
     private lateinit var btnException: Button
+    private lateinit var btnDemoActivity: Button
 
     //private val mainScope = MainScope()
     private val handler = CoroutineExceptionHandler { _, exception ->
@@ -46,6 +47,7 @@ class MainActivity : AppCompatActivity(), CoroutineScope by MainScope(){
         btnMainScope = findViewById(R.id.btn_main_scope)
         btnMvvm = findViewById(R.id.btn_mvvm)
         btnException = findViewById(R.id.btn_exception)
+        btnDemoActivity = findViewById(R.id.btn_demo_activity)
 
 
 
@@ -94,6 +96,10 @@ class MainActivity : AppCompatActivity(), CoroutineScope by MainScope(){
                 Log.d("sty", "on exception clicked")
                 "abc".substring(10)
             }
+        }
+
+        btnDemoActivity.setOnClickListener {
+            startActivity(Intent(this, DemoActivity::class.java))
         }
     }
 

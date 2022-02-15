@@ -2003,3 +2003,92 @@ fun testAvoidAccessOuterVariable() = runBlocking<Unit> {
 //1000
 ```
 
+## 六、实践操作
+
+### 6.1 文件下载
+
+文件下载流程如下图所示：
+
+![image-20220214204927888](https://gitee.com/tianyalusty/pic-go-repository/raw/master/img/202202142049977.png)
+
+核心代码如下：
+
+```kotlin
+object DownloadManager {
+    fun download(url: String, file: File) : Flow<DownloadStatus> {
+        return flow {
+            val request = Request.Builder().url(url).get().build()
+            val response = OkHttpClient.Builder().build().newCall(request).execute()
+            if(response.isSuccessful) {
+                response.body()!!.let { body ->
+                    val total = body.contentLength()
+                    //文件读写
+                    file.outputStream().use { output ->
+                        val input = body.byteStream()
+                        var emittedProgress = 0L
+                        input.copyTo(output) { bytesCopied ->
+                            val progress = bytesCopied * 100 / total
+                            if(progress - emittedProgress > 5) {
+                                delay(100)
+                                emit(DownloadStatus.Progress(progress.toInt()))
+                                emittedProgress = progress
+                            }
+                        }
+                    }
+                }
+                emit(DownloadStatus.Done(file))
+            }else {
+                throw IOException(response.toString())
+            }
+        }.catch {
+            file.delete()
+            it.printStackTrace()
+            emit(DownloadStatus.Error(it))
+        }.flowOn(Dispatchers.IO)
+    }
+}
+
+// DownloadFragment
+    override fun onActivityCreated(savedInstanceState: Bundle?) {
+        super.onActivityCreated(savedInstanceState)
+
+        askForPermissions(Permission.WRITE_EXTERNAL_STORAGE) { _ ->
+            lifecycleScope.launchWhenCreated {
+                context?.apply {
+                    //val file = File(getExternalFilesDir(null)?.path + "/sty/", "beauty.JPG")
+                    // /storage/emulated/0/Android/data/com.sty.kotlincoroutine/files/sty/beauty.JPG
+                    val file = File(
+                        Environment.getExternalStorageDirectory()?.path + "/sty/",
+                        "beauty.JPG"
+                    )
+                    // /storage/emulated/0/sty/beauty.JPG
+                    DownloadManager.download(URL, file).collect { status ->
+                        when (status) {
+                            is DownloadStatus.Progress -> {
+                                mBinding.apply {
+                                    progressBar.progress = status.value
+                                    tvProgress.text = "${status.value}%"
+                                }
+                            }
+                            is DownloadStatus.Error -> {
+                                Toast.makeText(context, "下载错误", Toast.LENGTH_SHORT).show()
+                            }
+                            is DownloadStatus.Done -> {
+                                mBinding.apply {
+                                    progressBar.progress = 100
+                                    tvProgress.text = "100%"
+                                }
+                                Toast.makeText(context, "下载完成", Toast.LENGTH_SHORT).show()
+
+                            }
+                            else -> {
+                                Toast.makeText(context, "下载失败", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+```
+
