@@ -2096,7 +2096,7 @@ object DownloadManager {
 
 核心代码如下：
 
-`UserFragment`
+`UserFragment`:
 
 ```kotlin
 class UserFragment : Fragment() {
@@ -2141,7 +2141,7 @@ class UserFragment : Fragment() {
 }
 ```
 
-`UserViewModel`
+`UserViewModel`:
 
 ```kotlin
 class UserViewModel(app: Application): AndroidViewModel(app) {
@@ -2165,7 +2165,7 @@ class UserViewModel(app: Application): AndroidViewModel(app) {
 }
 ```
 
-`User`
+`User`:
 
 ```kotlin
 @Entity
@@ -2176,7 +2176,7 @@ data class User(
 )
 ```
 
-`UserDao`
+`UserDao`:
 
 ```kotlin
 @Dao
@@ -2189,7 +2189,7 @@ interface UserDao {
 }
 ```
 
-`AppDatabase`
+`AppDatabase`:
 
 ```kotlin
 @Database(entities = [User::class], version = 1, exportSchema = false)
@@ -2219,13 +2219,13 @@ abstract class AppDatabase : RoomDatabase() {
 
 核心代码如下：
 
-`Article`
+`Article`:
 
 ```kotlin
 data class Article(val id: Int, val text: String)
 ```
 
-`ArticleApi`
+`ArticleApi`:
 
 ```kotlin
 interface ArticleApi {
@@ -2236,7 +2236,7 @@ interface ArticleApi {
 }
 ```
 
-`RetrofitClient`
+`RetrofitClient`:
 
 ```kotlin
 object RetrofitClient {
@@ -2255,7 +2255,7 @@ object RetrofitClient {
 }
 ```
 
-`ArticleViewModel`
+`ArticleViewModel`:
 
 ```kotlin
 class ArticleViewModel(app: Application) : AndroidViewModel(app) {
@@ -2275,7 +2275,7 @@ class ArticleViewModel(app: Application) : AndroidViewModel(app) {
 }
 ```
 
-`ArticleFragment`
+`ArticleFragment`:
 
 ```kotlin
 class ArticleFragment : Fragment() {
@@ -2337,7 +2337,7 @@ class ArticleFragment : Fragment() {
 
 核心代码如下：
 
-`NumberViewModel`
+`NumberViewModel`:
 
 ```kotlin
 class NumberViewModel : ViewModel() {
@@ -2353,7 +2353,7 @@ class NumberViewModel : ViewModel() {
 }
 ```
 
-`NumberFragment`
+`NumberFragment`:
 
 ```kotlin
 class NumberFragment : Fragment() {
@@ -2385,6 +2385,93 @@ class NumberFragment : Fragment() {
         lifecycleScope.launchWhenCreated {
             viewModel.number.collect { value ->
                 mBinding.tvNumber.text = "$value"
+            }
+        }
+    }
+}
+```
+
+#### 6.4.2 `SharedFlow`
+
+`SharedFlow`会向从其中收集值的所有使用方发出数据。
+
+核心代码如下：
+
+`SharedFlowViewModel`:
+
+```kotlin
+class SharedFlowViewModel: ViewModel() {
+    private lateinit var job: Job
+
+    fun startRefresh() {
+        job = viewModelScope.launch(Dispatchers.IO) {
+            while (true) {
+                LocalEventBus.postEvent(Event(System.currentTimeMillis()))
+            }
+        }
+    }
+
+    fun stopRefresh() {
+        job.cancel()
+    }
+}
+```
+
+`SharedFlowFragment`:
+
+```kotlin
+class SharedFlowFragment : Fragment() {
+    private val viewModel by viewModels<SharedFlowViewModel>()
+    private val mBinding : FragmentSharedFlowBinding by lazy {
+        FragmentSharedFlowBinding.inflate(layoutInflater)
+    }
+
+    override fun onCreateView(
+        inflater: LayoutInflater, container: ViewGroup?,
+        savedInstanceState: Bundle?
+    ): View? {
+        // Inflate the layout for this fragment
+        return mBinding.root
+    }
+
+    override fun onActivityCreated(savedInstanceState: Bundle?) {
+        super.onActivityCreated(savedInstanceState)
+
+        mBinding.apply {
+            btnStart.setOnClickListener {
+                viewModel.startRefresh()
+            }
+            btnStop.setOnClickListener {
+                viewModel.stopRefresh()
+            }
+        }
+    }
+
+}
+```
+
+`TextFragment`:
+
+```kotlin
+class TextFragment : Fragment() {
+    private val mBinding: FragmentTextBinding by lazy {
+        FragmentTextBinding.inflate(layoutInflater)
+    }
+
+    override fun onCreateView(
+        inflater: LayoutInflater, container: ViewGroup?,
+        savedInstanceState: Bundle?
+    ): View? {
+        // Inflate the layout for this fragment
+        return mBinding.root
+    }
+
+    override fun onActivityCreated(savedInstanceState: Bundle?) {
+        super.onActivityCreated(savedInstanceState)
+
+        lifecycleScope.launchWhenCreated {
+            LocalEventBus.events.collect {
+                mBinding.tvTime.text = it.timestamp.toString()
             }
         }
     }

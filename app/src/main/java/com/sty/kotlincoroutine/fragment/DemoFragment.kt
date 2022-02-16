@@ -42,6 +42,10 @@ class DemoFragment : Fragment() {
             btnStateFlow.setOnClickListener {
                 findNavController().navigate(R.id.action_demoFragment_to_numberFragment)
             }
+
+            btnSharedFlow.setOnClickListener {
+                findNavController().navigate(R.id.action_demoFragment_to_sharedFlowFragment)
+            }
         }
     }
 }
