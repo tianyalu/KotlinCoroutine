@@ -19,6 +19,9 @@
         <action
             android:id="@+id/action_demoFragment_to_articleFragment"
             app:destination="@id/articleFragment" />
+        <action
+            android:id="@+id/action_demoFragment_to_numberFragment"
+            app:destination="@id/numberFragment" />
     </fragment>
     <fragment
         android:id="@+id/downloadFragment"
@@ -35,4 +38,9 @@
         android:name="com.sty.kotlincoroutine.fragment.ArticleFragment"
         android:label="fragment_article"
         tools:layout="@layout/fragment_article" />
+    <fragment
+        android:id="@+id/numberFragment"
+        android:name="com.sty.kotlincoroutine.fragment.NumberFragment"
+        android:label="fragment_number"
+        tools:layout="@layout/fragment_number" />
 </navigation>

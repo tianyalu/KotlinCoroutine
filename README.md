@@ -2326,3 +2326,68 @@ class ArticleFragment : Fragment() {
 }
 ```
 
+### 6.4 冷流与热流
+
+* `Flow`是冷流，什么事冷流？简单来说如果`Flow`有了订阅者`Collector`之后，发射出来的值才会实实在在地存在于内存中，这跟懒加载的概念很像；
+* 与之相对应的是热流，`StateFlow`和`SharedFlow`是热流，在垃圾回收之前都是存在于内存之中，并处于活跃状态的。
+
+#### 6.4.1 `StateFlow`
+
+`StateFlow`是一个状态容器式 **可观察数据流** ，可以向其收集器发出当前状态更新和新状态更新，还可以通过其`value`属性读取当前状态值。
+
+核心代码如下：
+
+`NumberViewModel`
+
+```kotlin
+class NumberViewModel : ViewModel() {
+    val number = MutableStateFlow(0)
+
+    fun increment() {
+        number.value++
+    }
+
+    fun decrement() {
+        number.value--
+    }
+}
+```
+
+`NumberFragment`
+
+```kotlin
+class NumberFragment : Fragment() {
+    private val viewModel by viewModels<NumberViewModel>()
+    private val mBinding: FragmentNumberBinding by lazy {
+        FragmentNumberBinding.inflate(layoutInflater)
+    }
+
+    override fun onCreateView(
+        inflater: LayoutInflater, container: ViewGroup?,
+        savedInstanceState: Bundle?
+    ): View? {
+        // Inflate the layout for this fragment
+        return mBinding.root
+    }
+
+    override fun onActivityCreated(savedInstanceState: Bundle?) {
+        super.onActivityCreated(savedInstanceState)
+        mBinding.apply {
+            btnPlus.setOnClickListener {
+                viewModel.increment()
+            }
+
+            btnMinus.setOnClickListener {
+                viewModel.decrement()
+            }
+        }
+
+        lifecycleScope.launchWhenCreated {
+            viewModel.number.collect { value ->
+                mBinding.tvNumber.text = "$value"
+            }
+        }
+    }
+}
+```
+

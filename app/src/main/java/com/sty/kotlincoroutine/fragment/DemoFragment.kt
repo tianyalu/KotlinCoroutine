@@ -38,6 +38,10 @@ class DemoFragment : Fragment() {
             btnFlowAndRetrofit.setOnClickListener {
                 findNavController().navigate(R.id.action_demoFragment_to_articleFragment)
             }
+
+            btnStateFlow.setOnClickListener {
+                findNavController().navigate(R.id.action_demoFragment_to_numberFragment)
+            }
         }
     }
 }
