@@ -34,6 +34,10 @@ class DemoFragment : Fragment() {
             btnFlowAndRoom.setOnClickListener {
                 findNavController().navigate(R.id.action_demoFragment_to_userFragment)
             }
+
+            btnFlowAndRetrofit.setOnClickListener {
+                findNavController().navigate(R.id.action_demoFragment_to_articleFragment)
+            }
         }
     }
 }

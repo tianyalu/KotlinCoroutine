@@ -16,6 +16,9 @@
         <action
             android:id="@+id/action_demoFragment_to_userFragment"
             app:destination="@id/userFragment" />
+        <action
+            android:id="@+id/action_demoFragment_to_articleFragment"
+            app:destination="@id/articleFragment" />
     </fragment>
     <fragment
         android:id="@+id/downloadFragment"
@@ -27,4 +30,9 @@
         android:name="com.sty.kotlincoroutine.fragment.UserFragment"
         android:label="fragment_user"
         tools:layout="@layout/fragment_user" />
+    <fragment
+        android:id="@+id/articleFragment"
+        android:name="com.sty.kotlincoroutine.fragment.ArticleFragment"
+        android:label="fragment_article"
+        tools:layout="@layout/fragment_article" />
 </navigation>

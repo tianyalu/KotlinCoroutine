@@ -2005,7 +2005,7 @@ fun testAvoidAccessOuterVariable() = runBlocking<Unit> {
 
 ## 六、实践操作
 
-### 6.1 文件下载
+### 6.1  `Flow`与文件下载
 
 文件下载流程如下图所示：
 
@@ -2207,6 +2207,121 @@ abstract class AppDatabase : RoomDatabase() {
                     }
             }
         }
+    }
+}
+```
+
+### 6.3 `Flow`与`Retrofit`的应用
+
+示例应用数据显示数据流如下图所示：
+
+![image-20220216150917355](https://gitee.com/tianyalusty/pic-go-repository/raw/master/img/202202161509561.png)
+
+核心代码如下：
+
+`Article`
+
+```kotlin
+data class Article(val id: Int, val text: String)
+```
+
+`ArticleApi`
+
+```kotlin
+interface ArticleApi {
+    @GET("article")
+    suspend fun searchArticles(
+        @Query("key") key: String
+    ): List<Article>
+}
+```
+
+`RetrofitClient`
+
+```kotlin
+object RetrofitClient {
+    private val instance: Retrofit by lazy {
+        Retrofit.Builder()
+            .client(OkHttpClient.Builder().build())
+            //.client(builder.build())
+            .baseUrl("http://10.16.1.51:8084/abc/")
+            .addConverterFactory(GsonConverterFactory.create())
+            .build()
+    }
+
+    val articleApi: ArticleApi by lazy {
+        instance.create(ArticleApi::class.java)
+    }
+}
+```
+
+`ArticleViewModel`
+
+```kotlin
+class ArticleViewModel(app: Application) : AndroidViewModel(app) {
+    val articles = MutableLiveData<List<Article>>()
+    fun searchArticles(key: String) {
+        viewModelScope.launch {
+            flow {
+                val list = RetrofitClient.articleApi.searchArticles(key)
+                emit(list)
+            }.flowOn(Dispatchers.IO)
+                .catch { e -> e.printStackTrace() }
+                .collect {
+                    articles.value = it
+                }
+        }
+    }
+}
+```
+
+`ArticleFragment`
+
+```kotlin
+class ArticleFragment : Fragment() {
+    private val viewModel by viewModels<ArticleViewModel>()
+    private val mBinding: FragmentArticleBinding by lazy {
+        FragmentArticleBinding.inflate(layoutInflater)
+    }
+
+    override fun onCreateView(
+        inflater: LayoutInflater, container: ViewGroup?,
+        savedInstanceState: Bundle?
+    ): View? {
+        // Inflate the layout for this fragment
+        return mBinding.root
+    }
+
+    override fun onActivityCreated(savedInstanceState: Bundle?) {
+        super.onActivityCreated(savedInstanceState)
+        //获取关键字
+        lifecycleScope.launchWhenCreated {
+            mBinding.etSearch.textWatcherFlow().collect {
+                Log.d("sty", "collect keywords: $it")
+                viewModel.searchArticles(it)
+            }
+        }
+
+        context?.let {
+            val adapter = ArticleAdapter(it)
+            mBinding.rcvList.adapter = adapter
+            viewModel.articles.observe(viewLifecycleOwner, { articles ->
+                adapter.setData(articles)
+            })
+        }
+    }
+
+    private fun TextView.textWatcherFlow(): Flow<String> = callbackFlow {
+        val textWatcher = object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) { }
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) { }
+            override fun afterTextChanged(s: Editable?) {
+                this@callbackFlow.trySend(s.toString()).isSuccess
+            }
+        }
+
+        addTextChangedListener(textWatcher)
+        awaitClose { removeTextChangedListener(textWatcher) }
     }
 }
 ```
