@@ -2397,6 +2397,22 @@ class NumberFragment : Fragment() {
 
 核心代码如下：
 
+`LocalEventBus`:
+
+```kotlin
+object LocalEventBus {
+    val events = MutableSharedFlow<Event>()
+
+    suspend fun postEvent(event: Event) {
+        events.emit(event)
+    }
+}
+
+data class Event(val timestamp: Long)
+```
+
+
+
 `SharedFlowViewModel`:
 
 ```kotlin
