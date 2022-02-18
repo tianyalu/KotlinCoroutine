@@ -2543,3 +2543,12 @@ class TextFragment : Fragment() {
 加载的状态信息被存放于一个`Flow`当中：
 
 ![image-20220218193652128](https://gitee.com/tianyalusty/pic-go-repository/raw/master/img/202202181936251.png)
+
+### 6.6 `Hilt`
+
+#### 6.6.1 简介
+
+`Hilt`负责托管对象与对象之间的注入关系：
+
+![image-20220218200200524](https://gitee.com/tianyalusty/pic-go-repository/raw/master/img/202202182002634.png)
+

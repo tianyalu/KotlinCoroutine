@@ -1,5 +1,6 @@
 package com.sty.kotlincoroutine.fragment
 
+import android.content.Intent
 import android.os.Bundle
 import androidx.fragment.app.Fragment
 import android.view.LayoutInflater
@@ -7,6 +8,7 @@ import android.view.View
 import android.view.ViewGroup
 import androidx.navigation.fragment.findNavController
 import com.sty.kotlincoroutine.R
+import com.sty.kotlincoroutine.activity.HiltActivity
 import com.sty.kotlincoroutine.databinding.FragmentDemoBinding
 
 
@@ -45,6 +47,10 @@ class DemoFragment : Fragment() {
 
             btnPaging.setOnClickListener {
                 findNavController().navigate(R.id.action_demoFragment_to_pagingFragment)
+            }
+
+            btnHilt.setOnClickListener {
+                startActivity(Intent(activity, HiltActivity::class.java))
             }
         }
     }

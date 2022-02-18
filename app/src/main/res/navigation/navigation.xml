@@ -28,6 +28,9 @@
         <action
             android:id="@+id/action_demoFragment_to_pagingFragment"
             app:destination="@id/pagingFragment" />
+        <action
+            android:id="@+id/action_demoFragment_to_hiltFragment"
+            app:destination="@id/hiltFragment" />
     </fragment>
     <fragment
         android:id="@+id/downloadFragment"
@@ -59,4 +62,9 @@
         android:name="com.sty.kotlincoroutine.fragment.PagingFragment"
         android:label="fragment_paging"
         tools:layout="@layout/fragment_paging" />
+    <fragment
+        android:id="@+id/hiltFragment"
+        android:name="com.sty.kotlincoroutine.fragment.HiltFragment"
+        android:label="fragment_hilt"
+        tools:layout="@layout/fragment_hilt" />
 </navigation>
