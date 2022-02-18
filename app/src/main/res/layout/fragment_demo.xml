@@ -40,4 +40,11 @@
         android:layout_height="wrap_content"
         android:text="Shared Flow"
         android:textAllCaps="false"/>
+
+    <Button
+        android:id="@+id/btn_paging"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Paging"
+        android:textAllCaps="false"/>
 </LinearLayout>

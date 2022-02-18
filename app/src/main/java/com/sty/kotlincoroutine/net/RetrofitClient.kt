@@ -17,7 +17,8 @@ object RetrofitClient {
         Retrofit.Builder()
             .client(OkHttpClient.Builder().build())
             //.client(builder.build())
-            .baseUrl("http://10.16.1.51:8084/abc/")
+            //.baseUrl("http://10.16.1.51:8084/abc/") //本地服务器
+            .baseUrl("https://movie.douban.com/j/")  //电影
             .addConverterFactory(GsonConverterFactory.create())
             .build()
     }
@@ -36,5 +37,9 @@ object RetrofitClient {
 
     val articleApi: ArticleApi by lazy {
         instance.create(ArticleApi::class.java)
+    }
+
+    fun <T> createApi(clazz: Class<T>): T {
+        return instance.create(clazz) as T
     }
 }

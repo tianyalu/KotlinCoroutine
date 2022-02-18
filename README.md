@@ -2494,3 +2494,52 @@ class TextFragment : Fragment() {
 }
 ```
 
+### 6.5 `Flow`与`Paging3`
+
+#### 6.5.1 加载数据的流程
+
+如下图所示：
+
+![image-20220216195730119](https://gitee.com/tianyalusty/pic-go-repository/raw/master/img/202202161957222.png)
+
+#### 6.5.2 分页逻辑
+
+适用于数据源 **以页的方式** 进行请求的情况，例如，若请求时携带的参数为`page=2&pageSize=5`，则表示数据源以5页数据为一页，当前返回第二页的5条数据：
+
+![image-20220216202359995](https://gitee.com/tianyalusty/pic-go-repository/raw/master/img/202202162024089.png)
+
+#### 6.5.3 分页接口
+
+`API`接口：`http://192.168.111.11:8080/pagingserver_war/pkds.do?page=1&pagesize=8`
+
+接口返回的数据格式：
+
+```json
+{
+    "has_more": true,
+    "subjects": [
+        {
+        	"id": 35076714,
+        	"title": "扎克·施奈德版正义联盟",
+        	"cover": "https://img9.doubanio.com/xxx.webp",
+        	"rate": "8.9" 
+        },
+        {
+            ...
+        }
+		//...
+    ]
+}
+```
+
+#### 6.5.4 `PageConfig`
+
+* `pageSize`：每页显示的数据的大小；
+* `prefetchDistance`：预刷新的距离，距离最后一个`item`多远时加载数据，默认为`pageSize`;
+* `initialLoadSize`：初始化加载数量，默认为`pageSize * 3`.
+
+#### 6.5.5 获取`LoadState`
+
+加载的状态信息被存放于一个`Flow`当中：
+
+![image-20220218193652128](https://gitee.com/tianyalusty/pic-go-repository/raw/master/img/202202181936251.png)
