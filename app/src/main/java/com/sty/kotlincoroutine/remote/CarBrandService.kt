@@ -1,4 +1,4 @@
-package com.sty.kotlincoroutine.net
+package com.sty.kotlincoroutine.remote
 
 import com.sty.kotlincoroutine.model.CarBrandItemModel
 import retrofit2.http.GET

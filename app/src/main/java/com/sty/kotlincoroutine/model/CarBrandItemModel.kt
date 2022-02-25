@@ -7,7 +7,6 @@ package com.sty.kotlincoroutine.model
  */
 data class CarBrandItemModel(
     var id: Int,
-    val title: String,
-    val rate: String,
-    val cover: String
+    val name: String,
+    val icon: String
 )

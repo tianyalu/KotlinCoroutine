@@ -2552,3 +2552,37 @@ class TextFragment : Fragment() {
 
 ![image-20220218200200524](https://gitee.com/tianyalusty/pic-go-repository/raw/master/img/202202182002634.png)
 
+注解：
+
+* `@HiltAndroidApp`：触发`Hilt`的代码生成；
+* `@AndroidEntryPoint`：创建一个依赖容器，该容器遵循`Android`类的生命周期；
+* `@Module`：告诉`Hilt`如何提供不同类型的实例；
+* `@InstallIn`：`Install`用来告诉`Hilt`这个模块会被安装到哪个组件上；
+* `@Provides`：告诉`Hilt`如何获得具体实例；
+* `@Singleton`：单例；
+* `@ViewModelInject`：通过构造函数，给`ViewModel`注入实例。
+
+#### 6.6.2 分页逻辑
+
+适用于当目标数据的 **下一页需要依赖于上一页** 数据中最后一个对象中的某个字段作为`key`的情况，此类分页形式常见于评论功能的实现，例如：若上一页数据中最后一个对象的`key`为9001，那么在请求下一页时，需要携带参数`since=9001&pageSize=5`，则服务器会返回`key=9001`之后的5条数据
+
+![image-20220218203912400](https://gitee.com/tianyalusty/pic-go-repository/raw/master/img/202202182039524.png)
+
+#### 6.6.3 `Paging3`架构
+
+![image-20220221192216209](https://gitee.com/tianyalusty/pic-go-repository/raw/master/img/202202211922445.png)
+
+#### 6.6.4 `Room`支持
+
+如果使用的是`Room`，从`2.3.0-alpha`开始，它将默认为您实现`PagingSource`，在定义`Dao`接口的`Query`语句时，返回类型要使用`PagingSource`类型，同时不需要在`Query`里指定页数和每页展示数量，页数由`PagingSource`来控制，每页数量页在`PagingConfig`中定义。
+
+#### 6.6.5 `Data Mapper`
+
+使用`Data Mapper`分离数据源的`Model`和页面显示的`Model`，不要因为数据源的增加、修改或者删除导致上层页面也要跟着一起修改。
+
+![image-20220221205721391](https://gitee.com/tianyalusty/pic-go-repository/raw/master/img/202202212057487.png)
+
+`CarBrandEntity`与`CarBrandItemModel`相互转换：
+
+![image-20220221205845605](https://gitee.com/tianyalusty/pic-go-repository/raw/master/img/202202212058709.png)
+

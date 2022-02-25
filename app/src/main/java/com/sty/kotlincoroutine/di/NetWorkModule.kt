@@ -2,7 +2,7 @@ package com.sty.kotlincoroutine.di
 
 import android.util.Log
 import com.sty.kotlincoroutine.app.AppHelper.SERVER_URL
-import com.sty.kotlincoroutine.net.CarBrandService
+import com.sty.kotlincoroutine.remote.CarBrandService
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
