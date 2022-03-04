@@ -1,5 +1,9 @@
 package com.sty.kotlincoroutine.utils
 
+import android.content.Context
+import android.net.ConnectivityManager
+import android.net.NetworkInfo
+import androidx.core.net.ConnectivityManagerCompat
 import java.io.InputStream
 import java.io.OutputStream
 
@@ -19,4 +23,10 @@ inline fun InputStream.copyTo(out: OutputStream, bufferSize: Int = DEFAULT_BUFFE
         progress(bytesCopied)
     }
     return bytesCopied
+}
+
+fun Context.isConnectedNetwork() : Boolean = run {
+    val cm = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+    val activeNetwork: NetworkInfo? = cm.activeNetworkInfo
+    activeNetwork?.isConnectedOrConnecting == true
 }

@@ -21,6 +21,15 @@ android {
         multiDexEnabled true
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+
+        //方便查看Room数据库架构信息-->编译之后会在app/schemas目录下生成数据库JSON文件
+        //加这个会报错：Expected @HiltAndroidApp to have a value. Did you forget to apply the Gradle Plugin?
+//        javaCompileOptions {
+//            annotationProcessorOptions {
+//                arguments = ["room.schemaLocation":
+//                                     "$projectDir/schemas".toString()]
+//            }
+//        }
     }
 
     buildTypes {
@@ -57,6 +66,7 @@ dependencies {
     //
     implementation 'androidx.activity:activity-ktx:1.1.0'
     implementation 'androidx.fragment:fragment-ktx:1.2.5'
+    implementation 'androidx.startup:startup-runtime:1.0.0'
     //room
     def room_version = "2.3.0"
     implementation "androidx.room:room-runtime:$room_version"
@@ -100,7 +110,7 @@ dependencies {
     implementation "com.google.dagger:hilt-android:$hilt_version"
     kapt "com.google.dagger:hilt-android-compiler:$hilt_version"
     def hilt_view_version = "1.0.0-alpha01"
-    kapt "androidx.hilt:hilt-lifecycle-viewmodel:$hilt_view_version"
+    implementation "androidx.hilt:hilt-lifecycle-viewmodel:$hilt_view_version"
     kapt "androidx.hilt:hilt-compiler:$hilt_view_version"
 
 

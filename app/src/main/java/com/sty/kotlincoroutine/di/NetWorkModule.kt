@@ -30,13 +30,13 @@ object NetWorkModule {
 
     @Singleton
     @Provides
-    fun provideRetrofit(okhttpClient: OkHttpClient) : Retrofit {
+    fun provideRetrofit(okHttpClient: OkHttpClient) : Retrofit {
         val interceptor = HttpLoggingInterceptor(HttpLoggingInterceptor.Logger {
             Log.d("sty", it)
         })
         interceptor.level = HttpLoggingInterceptor.Level.BODY
         return Retrofit.Builder()
-            .client(okhttpClient)
+            .client(okHttpClient)
             .baseUrl(SERVER_URL)
             .addConverterFactory(GsonConverterFactory.create())
             .build()

@@ -2,6 +2,8 @@
 
 [TOC]
 
+说明：本文涉及后台相关项目代码地址为：[https://github.com/tianyalu/SpringBootStudy](https://github.com/tianyalu/SpringBootStudy)
+
 ## 一、概念相关
 
 ### 1.1 协程
@@ -2568,6 +2570,10 @@ class TextFragment : Fragment() {
 
 ![image-20220218203912400](https://gitee.com/tianyalusty/pic-go-repository/raw/master/img/202202182039524.png)
 
+如何计算得到下一页的`Page`值
+
+![image-20220228200827898](https://gitee.com/tianyalusty/pic-go-repository/raw/master/img/202202282008092.png)
+
 #### 6.6.3 `Paging3`架构
 
 ![image-20220221192216209](https://gitee.com/tianyalusty/pic-go-repository/raw/master/img/202202211922445.png)
@@ -2585,4 +2591,37 @@ class TextFragment : Fragment() {
 `CarBrandEntity`与`CarBrandItemModel`相互转换：
 
 ![image-20220221205845605](https://gitee.com/tianyalusty/pic-go-repository/raw/master/img/202202212058709.png)
+
+#### 6.6.5 `Coil`
+
+* **性能优秀** ；
+* **体积较小** ：其包体积与`Picasso`相当，显著低于`Glide`和`Fresco`，仅仅只用1500个方法，但在功能上不输于其它同类库；
+* **简单易用** ：配合`Kotlin`扩展方法等语法优势，`API`简单易用；
+* **技术先进** ：基于`Coroutine`、`OkHttp`、`Okio`、`AndroidX`等先端技术开发，确保了技术上的先进性；
+* **丰富功能** ：缓存管理（`MemCache`、`DiskCache`）、动态采样(`Dynamic image sampling`)、加载中暂停/终止等功能有助于提高图片加载效率。
+
+#### 6.6.6 `LoadType`
+
+`LoadType`是一个枚举类，里面定义了三个值：
+
+* `LoadType.Refresh`：在初始化刷新的时候使用，首次访问或者调用`PagingDataAdapter.refresh()`触发；
+* `LoadType.Append`：在加载更多的时候使用，需要注意的是当`LoadType.REFRESH`触发了`LoadType.PREPEND`也会触发；
+* `LoadType.Prepend`：在当前列表头部添加数据的时候使用。
+
+#### 6.6.7 `PagingState`
+
+* `Pages`：`List<Page<Key, Value>>`返回的上一页的数据，主要用来获取上一页最后一条数据作为下一页的开始位置；
+* `config`：`PagingConfig`返回的初始化设置的`PagingConfig`包含了`pageSize`、`prefetchDistance`、`initialLoadSize`等等。
+
+#### 6.6.8 `MediatorResult`
+
+* 请求出现错误，返回`MediatorResult.Error(e)`;
+* 请求成功且有数据，返回`MediatorResult.Success(endOfPaginationReached = true)`；
+* 请求成功但是没有数据，返回`MdeiatorResult.Success(endOfPaginationReached = false)`。
+
+#### 6.6.9 `App Startup`
+
+`App Startup`是`Android Jetpack`最新成员，提供了在`App`启动时初始化组件简单、高效的方法，无论是`library`开发人员还是`App`开发人员都可以使用`App Startup` **显示地设置初始化顺序** 。
+
+![image-20220301195953636](https://gitee.com/tianyalusty/pic-go-repository/raw/master/img/202203011959735.png)
 

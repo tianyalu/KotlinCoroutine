@@ -8,6 +8,6 @@ import dagger.hilt.android.HiltAndroidApp
  * Time: 2022/2/18 0018 20:08
  * Description:
  */
-@HiltAndroidApp
+@HiltAndroidApp()
 class MyApplication: Application() {
 }
